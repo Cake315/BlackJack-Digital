@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>ブラックジャック 完全デジタル版（リアルカード＆確率ナビ付き）</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Noto+Sans+JP:wght@500;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    /* スマホ縦画面でも高さが潰れず自然に縦スクロールできる設定 */
+    html, body {
+      min-height: 100dvh;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: #133b2a;
+      background-image:
+        radial-gradient(circle at 50% 0%, #1e5c41 0%, #123827 70%, #0b2419 100%);
+      background-attachment: fixed;
+      color: #f8fafc;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 数値入力欄のスピンボタン非表示 */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    /* 世界のアソビ大全風の清潔感のあるカード質感 */
+    .table-card {
+      background: rgba(255, 255, 255, 0.98);
+      color: #1e293b;
+      box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.35), 0 3px 8px -2px rgba(0, 0, 0, 0.2);
+      transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s ease;
+    }
+
+    .btn-tactile {
+      touch-action: manipulation;
+      transition: transform 0.08s ease, filter 0.12s ease, background-color 0.15s ease;
+    }
+    .btn-tactile:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    /* トランプカードデザイン（実際のトランプ構造・高視認性） */
+    .playing-card {
+      width: 62px;
+      height: 88px;
+      border-radius: 10px;
+      background: linear-gradient(155deg, #ffffff 0%, #f8fafc 100%);
+      border: 1.5px solid #cbd5e1;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.24), 0 1px 2px rgba(0, 0, 0, 0.12);
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      flex-shrink: 0;
+      animation: dealCard 0.24s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @media (min-width: 640px) {
+      .playing-card {
+        width: 68px;
+        height: 96px;
+      }
+    }
+
+    /* 左上・右下のインデックス（数字＋スート縦積み） */
+    .card-corner {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .card-corner-tl {
+      top: 4px;
+      left: 5px;
+    }
+
+    .card-corner-br {
+      bottom: 4px;
+      right: 5px;
+      transform: rotate(180deg);
+    }
+
+    .card-rank-text {
+      font-family: 'Inter', sans-serif;
+      font-weight: 900;
+      font-size: 16px;
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+
+    @media (min-width: 640px) {
+      .card-rank-text {
+        font-size: 18px;
+      }
+    }
+
+    .card-suit-small {
+      font-size: 12px;
+      line-height: 1;
+      margin-top: 1px;
+    }
+
+    @media (min-width: 640px) {
+      .card-suit-small {
+        font-size: 13px;
+      }
+    }
+
+    .card-center-art {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    /* 裏向きトランプ（クラシック格子＆ダイヤ柄＋白枠） */
+    .playing-card-back {
+      background-color: #1e3a8a;
+      background-image:
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.14) 2px, transparent 2.5px),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.12) 0, rgba(255, 255, 255, 0.12) 4px, transparent 4px, transparent 8px),
+        repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.12) 0, rgba(255, 255, 255, 0.12) 4px, transparent 4px, transparent 8px);
+      background-size: 12px 12px, auto, auto;
+      border: 3px solid #ffffff;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28), inset 0 0 0 1.5px rgba(147, 197, 253, 0.45);
+    }
+
+    @keyframes dealCard {
+      0% {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.9);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* 精算時のチップ増減ポップアップアニメーション */
+    @keyframes floatDelta {
+      0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.85);
+      }
+      15% {
+        opacity: 1;
+        transform: translateY(0px) scale(1.08);
+      }
+      85% {
+        opacity: 1;
+        transform: translateY(-4px) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-14px) scale(0.95);
+      }
+    }
+
+    .delta-badge-anim {
+      animation: floatDelta 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* ラストラウンド・オールイン発光演出 */
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.9), 0 10px 24px -4px rgba(220, 38, 38, 0.45);
+      }
+      50% {
+        box-shadow: 0 0 0 4px rgba(251, 191, 36, 1), 0 14px 30px -2px rgba(239, 68, 68, 0.65);
+      }
+    }
+
+    .allin-card-glow {
+      animation: pulseGlow 2.2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="w-full">
+
+  <!-- ==================== 1. セットアップ画面 ==================== -->
+  <div id="setupScreen" class="min-h-dvh w-full flex flex-col justify-start sm:justify-center items-center p-3 sm:p-6">
+    <div class="w-full max-w-2xl bg-white text-slate-800 rounded-3xl shadow-2xl overflow-hidden border border-white/20 my-auto">
+      <!-- ヘッダー -->
+      <div class="bg-gradient-to-r from-emerald-700 to-teal-700 px-4 sm:px-6 py-4 sm:py-5 text-white flex items-center justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-1.5 text-emerald-200 text-[11px] sm:text-xs font-bold tracking-wider uppercase mb-0.5">
+            <span>♠ ♥ ♦ ♣</span>
+            <span>DIGITAL EDITION + ODDS NAVI</span>
+          </div>
+          <h1 class="text-lg sm:text-2xl font-extrabold tracking-tight">ブラックジャック 完全デジタル版</h1>
+        </div>
+        <span class="bg-white/15 px-2.5 py-1 rounded-full text-xs font-bold shrink-0">1〜8人・確率表示</span>
+      </div>
+
+      <div class="p-4 sm:p-6 space-y-4">
+        <!-- ルールプリセット -->
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">ルールプリセット選択</label>
+          <div class="grid grid-cols-2 gap-2.5">
+            <button type="button" onclick="applyPreset('standard')" id="presetStandardBtn"
+              class="btn-tactile p-3 rounded-2xl border-2 border-emerald-600 bg-emerald-50 text-left transition">
+              <div class="font-extrabold text-emerald-900 text-sm sm:text-base">スタンダード</div>
+              <div class="text-[11px] sm:text-xs text-emerald-700 mt-0.5">スプリットOFF / 降りる(全額没収)</div>
+            </button>
+            <button type="button" onclick="applyPreset('custom')" id="presetCustomBtn"
+              class="btn-tactile p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-left transition">
+              <div class="font-extrabold text-slate-800 text-sm sm:text-base">フルカスタム</div>
+              <div class="text-[11px] sm:text-xs text-slate-500 mt-0.5">スプリットON / サレンダーON</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 基本設定（人数・ラウンド・初期チップ） -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <!-- プレイヤー人数（1〜8人） -->
+          <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+            <label class="block text-xs font-bold text-slate-500 mb-1.5">プレイヤー人数 (1〜8人)</label>
+            <div class="flex items-center justify-between bg-white rounded-xl border border-slate-200 p-1">
+              <button type="button" onclick="changeSetupCount(-1)" class="btn-tactile w-10 h-10 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-lg text-slate-700">−</button>
+              <span id="setupPlayerCount" class="font-extrabold text-lg text-slate-800">4人</span>
+              <button type="button" onclick="changeSetupCount(1)" class="btn-tactile w-10 h-10 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-lg text-slate-700">＋</button>
+            </div>
+          </div>
+
+          <!-- ラウンド数 -->
+          <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+            <label for="setupRounds" class="block text-xs font-bold text-slate-500 mb-1.5">ラウンド設定</label>
+            <select id="setupRounds" class="w-full h-[48px] px-3 rounded-xl border border-slate-200 bg-white font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="0">エンドレス (無制限)</option>
+              <option value="5" selected>全 5 ラウンド</option>
+              <option value="10">全 10 ラウンド</option>
+              <option value="15">全 15 ラウンド</option>
+            </select>
+          </div>
+
+          <!-- 初期チップ -->
+          <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+            <label for="setupStartingChips" class="block text-xs font-bold text-slate-500 mb-1.5">初期所持チップ</label>
+            <select id="setupStartingChips" class="w-full h-[48px] px-3 rounded-xl border border-slate-200 bg-white font-bold text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="50">50 枚</option>
+              <option value="100" selected>100 枚 (標準)</option>
+              <option value="200">200 枚</option>
+              <option value="500">500 枚</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- デッキ数＆ベット上限設定 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div class="bg-sky-50/80 border border-sky-200/80 rounded-2xl p-3 flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-extrabold text-sky-950">🃏 使用トランプデッキ数</div>
+              <div class="text-[11px] text-sky-800">残り山札から厳密確率を計算</div>
+            </div>
+            <select id="setupDeckCount" class="px-3 py-2 rounded-xl border border-sky-200 bg-white font-extrabold text-sm text-sky-900 focus:outline-none">
+              <option value="1">1デッキ (52枚)</option>
+              <option value="2" selected>2デッキ (104枚)</option>
+              <option value="4">4デッキ (208枚)</option>
+              <option value="6">6デッキ (312枚)</option>
+            </select>
+          </div>
+
+          <div class="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-3 flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-extrabold text-amber-950">💰 最大ベット上限</div>
+              <div class="text-[11px] text-amber-800">マイナス残高(借金)続行OK</div>
+            </div>
+            <select id="setupMaxBet" class="px-3 py-2 rounded-xl border border-amber-200 bg-white font-extrabold text-sm text-emerald-700 focus:outline-none">
+              <option value="50">50 枚</option>
+              <option value="100" selected>100 枚 (標準)</option>
+              <option value="200">200 枚</option>
+              <option value="500">500 枚</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- カスタムルール詳細トグル -->
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-2">
+          <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">アクション＆確率ナビ設定</div>
+
+          <label class="flex items-center justify-between gap-3 p-2.5 bg-white rounded-xl border border-slate-200/70 cursor-pointer">
+            <div>
+              <div class="font-bold text-sm text-slate-800">📊 ヒット判断のリアルタイム確率ナビ</div>
+              <div class="text-[11px] text-slate-500">場に見えている札を除外し「21になる確率・バースト率」を表示</div>
+            </div>
+            <input type="checkbox" id="ruleOddsNavi" checked class="w-5 h-5 accent-sky-600 rounded cursor-pointer shrink-0">
+          </label>
+
+          <label class="flex items-center justify-between gap-3 p-2.5 bg-white rounded-xl border border-slate-200/70 cursor-pointer">
+            <div>
+              <div class="font-bold text-sm text-slate-800">スプリット (Split)</div>
+              <div class="text-[11px] text-slate-500">同数字2枚時に手札を2枠に分割して追加カードを配布</div>
+            </div>
+            <input type="checkbox" id="ruleSplit" onchange="syncPresetUI()" class="w-5 h-5 accent-emerald-600 rounded cursor-pointer shrink-0">
+          </label>
+
+          <label class="flex items-center justify-between gap-3 p-2.5 bg-white rounded-xl border border-slate-200/70 cursor-pointer">
+            <div>
+              <div class="font-bold text-sm text-slate-800">サレンダー (Surrender)</div>
+              <div class="text-[11px] text-slate-500">ON: 降りると半額返却 / OFF: 普通に降りる(全額没収)</div>
+            </div>
+            <input type="checkbox" id="ruleSurrender" onchange="syncPresetUI()" class="w-5 h-5 accent-emerald-600 rounded cursor-pointer shrink-0">
+          </label>
+
+          <label class="flex items-center justify-between gap-3 p-2.5 bg-amber-50/70 rounded-xl border border-amber-200/80 cursor-pointer">
+            <div>
+              <div class="font-bold text-sm text-amber-950">🔥 ラストラウンドのオールイン解禁</div>
+              <div class="text-[11px] text-amber-800">最終ラウンドのみ所持チップ全額ベット可能</div>
+            </div>
+            <input type="checkbox" id="ruleFinalAllIn" checked class="w-5 h-5 accent-amber-600 rounded cursor-pointer shrink-0">
+          </label>
+        </div>
+
+        <!-- プレイヤー名設定 -->
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">プレイヤー名 (タップして編集可)</label>
+          <div id="setupPlayerNamesGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <!-- JSで生成 -->
+          </div>
+        </div>
+
+        <!-- ゲーム開始ボタン -->
+        <button type="button" onclick="startGame()"
+          class="btn-tactile w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-base sm:text-lg shadow-lg shadow-emerald-900/25">
+          カードを配ってゲーム開始
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 2. メインゲーム画面 ==================== -->
+  <div id="gameScreen" class="hidden min-h-dvh w-full max-w-7xl mx-auto px-2.5 sm:px-5 py-2.5 sm:py-3 pb-14 flex flex-col gap-2.5 sm:gap-3">
+
+    <!-- ラストラウンド特別バナー -->
+    <div id="finalRoundBanner" class="hidden bg-gradient-to-r from-amber-500 via-red-600 to-amber-500 text-white rounded-2xl px-3 py-2 shadow-lg border border-amber-300/60 flex items-center justify-center text-center">
+      <span id="finalRoundBannerText" class="font-black text-xs sm:text-base tracking-wide drop-shadow">
+        🏆 FINAL ROUND — 所持チップ全額オールイン解禁！
+      </span>
+    </div>
+
+    <!-- トップバー -->
+    <header class="bg-black/35 backdrop-blur-md border border-white/10 rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 flex flex-col gap-2">
+      <div class="flex items-center justify-between gap-1.5 flex-wrap">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <div class="bg-emerald-500/20 border border-emerald-400/30 px-2.5 py-1 rounded-xl flex items-baseline gap-1.5">
+            <span class="text-[10px] text-emerald-300 font-bold">ROUND</span>
+            <span id="roundIndicator" class="text-sm sm:text-lg font-extrabold text-white leading-tight">1 / 5</span>
+          </div>
+          <div class="bg-sky-500/20 border border-sky-400/30 px-2.5 py-1 rounded-xl flex items-center gap-1 text-[11px] sm:text-xs font-extrabold text-sky-200">
+            <span>🃏 残り山札:</span>
+            <span id="shoeRemainingIndicator" class="text-white">104枚</span>
+          </div>
+          <button type="button" id="endlessToFinalBtn" onclick="triggerFinalRoundFromEndless()"
+            class="hidden btn-tactile px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-extrabold text-[11px] sm:text-xs shadow-md border border-amber-300/40">
+            🔥 ラストラウンドにする
+          </button>
+        </div>
+
+        <!-- ユーティリティボタン -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="openHistoryModal()" class="btn-tactile px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white flex items-center gap-1">
+            <span>📜</span><span>履歴</span>
+          </button>
+          <button type="button" onclick="openMidGameRulesModal()" class="btn-tactile px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white flex items-center gap-1">
+            <span>⚙️</span><span>ルール</span>
+          </button>
+          <button type="button" onclick="confirmResetToTitle()" class="btn-tactile px-2.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 text-xs font-bold text-rose-200">
+            終了
+          </button>
+        </div>
+      </div>
+
+      <!-- 2段目：フェーズ進行ステップ＆現在のルールバッジ -->
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-1 bg-black/30 p-1 rounded-xl text-[11px] sm:text-xs font-bold flex-1 sm:flex-initial justify-between sm:justify-start">
+          <span id="stepBet" class="px-2 py-1 rounded-lg bg-amber-400 text-slate-900 transition text-center flex-1 sm:flex-initial">1. ベット</span>
+          <span class="text-white/30">▶</span>
+          <span id="stepAction" class="px-2 py-1 rounded-lg text-white/60 transition text-center flex-1 sm:flex-initial">2. カード選択</span>
+          <span class="text-white/30">▶</span>
+          <span id="stepSettle" class="px-2 py-1 rounded-lg text-white/60 transition text-center flex-1 sm:flex-initial">3. 結果精算</span>
+        </div>
+
+        <div class="flex items-center gap-1 text-[10px] sm:text-xs flex-wrap">
+          <span id="badgeOddsNavi" class="px-2 py-0.5 rounded-lg font-bold bg-sky-500/25 text-sky-200 border border-sky-400/30">確率ナビ: ON</span>
+          <span id="badgeSplit" class="px-2 py-0.5 rounded-lg font-bold bg-white/10 text-slate-300">スプリット: OFF</span>
+          <span id="badgeSurrender" class="px-2 py-0.5 rounded-lg font-bold bg-white/10 text-slate-300">降りる: 全額没収</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ディーラー（固定親）手札＆コントロールエリア -->
+    <section class="bg-gradient-to-r from-slate-900/95 to-slate-800/95 border border-white/15 rounded-2xl p-3 sm:p-4 shadow-xl">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <!-- ディーラー情報＆手札表示 -->
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-xl shrink-0">
+              🎩
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-extrabold text-sm sm:text-lg text-white">ディーラー (固定親)</span>
+                <span id="dealerScoreBadge" class="px-2.5 py-0.5 rounded-full bg-white/15 text-amber-300 font-black text-xs sm:text-sm">
+                  待機中
+                </span>
+              </div>
+              <p id="phaseInstruction" class="text-[11px] sm:text-xs text-slate-300 mt-0.5 leading-snug">
+                各プレイヤーのベット枚数を設定してください。
+              </p>
+            </div>
+          </div>
+
+          <!-- ディーラーの手札トランプ -->
+          <div id="dealerCardsArea" class="flex items-center gap-2 min-h-[90px] sm:min-h-[98px] pl-1 overflow-x-auto">
+            <!-- JSでカード描画 -->
+          </div>
+        </div>
+
+        <!-- フェーズごとのメインコントロール -->
+        <div id="dealerControlArea" class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <!-- JSでフェーズに応じて動的レンダリング -->
+        </div>
+      </div>
+    </section>
+
+    <!-- プレイヤーグリッド：スマホ1列 / タブレット2列 / PC4列 -->
+    <main id="playersGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 w-full">
+      <!-- JSでプレイヤーカードを生成 -->
+    </main>
+  </div>
+
+  <!-- ==================== 3. 途中ルール変更モーダル ==================== -->
+  <div id="midRulesModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white text-slate-800 w-full max-w-md rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-extrabold text-lg">カスタムルール設定</h3>
+        <button type="button" onclick="closeMidGameRulesModal()" class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 font-bold text-slate-600">✕</button>
+      </div>
+
+      <div class="space-y-2.5">
+        <label class="flex items-center justify-between gap-3 p-3 bg-sky-50/70 rounded-2xl border border-sky-200 cursor-pointer">
+          <div>
+            <div class="font-bold text-sm text-sky-950">📊 ヒット判断のリアルタイム確率ナビ</div>
+            <div class="text-xs text-sky-800">次の1枚で21になる確率・バースト確率を自動計算</div>
+          </div>
+          <input type="checkbox" id="midRuleOddsNavi" class="w-5 h-5 accent-sky-600 shrink-0">
+        </label>
+
+        <label class="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 cursor-pointer">
+          <div>
+            <div class="font-bold text-sm">スプリット (Split)</div>
+            <div class="text-xs text-slate-500">手札を2枠に分割してベット追加</div>
+          </div>
+          <input type="checkbox" id="midRuleSplit" class="w-5 h-5 accent-emerald-600 shrink-0">
+        </label>
+
+        <label class="flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 cursor-pointer">
+          <div>
+            <div class="font-bold text-sm">サレンダー (Surrender)</div>
+            <div class="text-xs text-slate-500">ON: 半額返却 / OFF: 普通に降りる(全額没収)</div>
+          </div>
+          <input type="checkbox" id="midRuleSurrender" class="w-5 h-5 accent-emerald-600 shrink-0">
+        </label>
+
+        <label class="flex items-center justify-between gap-3 p-3 bg-amber-50/70 rounded-2xl border border-amber-200 cursor-pointer">
+          <div>
+            <div class="font-bold text-sm text-amber-950">🔥 ラストラウンドのオールイン解禁</div>
+            <div class="text-xs text-amber-800">最終ラウンドのみ所持チップ全額ベットを許可</div>
+          </div>
+          <input type="checkbox" id="midRuleFinalAllIn" class="w-5 h-5 accent-amber-600 shrink-0">
+        </label>
+      </div>
+
+      <div class="flex gap-2 pt-1">
+        <button type="button" onclick="saveMidGameRules()" class="btn-tactile flex-1 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm">
+          設定を反映する
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 4. ラウンド履歴モーダル ==================== -->
+  <div id="historyModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white text-slate-800 w-full max-w-2xl rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col max-h-[82dvh]">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+        <h3 class="font-extrabold text-lg">チップ増減履歴</h3>
+        <button type="button" onclick="closeHistoryModal()" class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 font-bold text-slate-600">✕</button>
+      </div>
+      <div id="historyContent" class="flex-1 overflow-y-auto space-y-2.5 text-sm">
+        <p class="text-slate-400 text-center py-8">まだ精算完了したラウンドがありません。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 5. 最終ランキング（リザルト）モーダル ==================== -->
+  <div id="rankingModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-white text-slate-800 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl">
+      <div class="bg-gradient-to-r from-amber-500 to-yellow-500 px-6 py-4 sm:py-5 text-slate-900 text-center">
+        <div class="text-xs font-extrabold tracking-widest uppercase">FINAL RESULTS</div>
+        <h2 class="text-xl sm:text-2xl font-black mt-0.5">最終チップランキング</h2>
+      </div>
+      <div id="rankingList" class="p-4 sm:p-6 space-y-2.5 max-h-[55dvh] overflow-y-auto">
+        <!-- JSでランキング生成 -->
+      </div>
+      <div class="px-4 sm:px-6 pb-5 sm:pb-6 flex gap-2.5">
+        <button type="button" onclick="continueEndlessFromRanking()" class="btn-tactile flex-1 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-sm">
+          エンドレスで続行
+        </button>
+        <button type="button" onclick="backToSetup()" class="btn-tactile flex-1 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-sm">
+          タイトルへ戻る
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 6. 確認ダイアログ ==================== -->
+  <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white text-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 text-center">
+      <h3 class="font-extrabold text-lg">確認</h3>
+      <p class="text-sm text-slate-600">タイトル画面に戻りますか？現在の進行データはリセットされます。</p>
+      <div class="flex gap-2.5 pt-2">
+        <button type="button" onclick="closeConfirmModal()" class="btn-tactile flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-sm">
+          キャンセル
+        </button>
+        <button type="button" id="confirmOkBtn" class="btn-tactile flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 font-bold text-white text-sm">
+          戻る
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * トランプ定義＆デッキ・確率計算エンジン
+     */
+    const SUITS = [
+      { symbol: '♠', hex: '#0f172a' },
+      { symbol: '♥', hex: '#dc2626' },
+      { symbol: '♦', hex: '#dc2626' },
+      { symbol: '♣', hex: '#0f172a' }
+    ];
+    const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+    const state = {
+      setupCount: 4,
+      playerNames: [
+        'プレイヤー1', 'プレイヤー2', 'プレイヤー3', 'プレイヤー4',
+        'プレイヤー5', 'プレイヤー6', 'プレイヤー7', 'プレイヤー8'
+      ],
+      startingChips: 100,
+      maxBet: 100,
+      maxRounds: 5,
+      deckCount: 2,
+      currentRound: 1,
+      rules: {
+        oddsNavi: true,
+        split: false,
+        surrender: false,
+        finalAllIn: true
+      },
+      phase: 'BETTING', // 'BETTING' | 'ACTION' | 'SETTLEMENT'
+      shoe: [],
+      dealerCards: [],
+      players: [],
+      history: []
+    };
+
+    function createEmptyHand(betAmount) {
+      return {
+        bet: betAmount,
+        cards: [],
+        stood: false,
+        doubled: false,
+        folded: false,
+        surrendered: false,
+        isSplitHand: false,
+        outcome: null
+      };
+    }
+
+    /**
+     * 山札（シュー）の生成・シャッフル・ドロー
+     */
+    function buildAndShuffleShoe() {
+      const cards = [];
+      for (let d = 0; d < state.deckCount; d++) {
+        for (const s of SUITS) {
+          for (const r of RANKS) {
+            cards.push({ suit: s.symbol, hex: s.hex, rank: r });
+          }
+        }
+      }
+      // Fisher-Yates シャッフル
+      for (let i = cards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cards[i], cards[j]] = [cards[j], cards[i]];
+      }
+      state.shoe = cards;
+    }
+
+    function drawCard(hidden = false) {
+      if (state.shoe.length === 0) {
+        buildAndShuffleShoe();
+      }
+      const card = state.shoe.pop();
+      return { ...card, hidden };
+    }
+
+    /**
+     * カード配列の合計点・ソフトハンド・BJ・バースト判定
+     */
+    function evaluateCards(cards, ignoreHidden = false) {
+      const visibleCards = ignoreHidden ? cards.filter(c => !c.hidden) : cards;
+      let total = 0;
+      let aces = 0;
+
+      for (const c of visibleCards) {
+        if (c.rank === 'A') {
+          aces += 1;
+          total += 11;
+        } else if (['K', 'Q', 'J', '10'].includes(c.rank)) {
+          total += 10;
+        } else {
+          total += parseInt(c.rank, 10);
+        }
+      }
+
+      while (total > 21 && aces > 0) {
+        total -= 10;
+        aces -= 1;
+      }
+
+      const isSoft = aces > 0;
+      const isBJ = !ignoreHidden && visibleCards.length === 2 && total === 21;
+      const isBust = total > 21;
+
+      return { total, isSoft, isBJ, isBust };
+    }
+
+    /**
+     * スプリット可能判定（同じ数字、または10点札同士）
+     */
+    function getCardSplitValue(rank) {
+      if (['10', 'J', 'Q', 'K'].includes(rank)) return 10;
+      return rank;
+    }
+
+    function canHandSplit(cards) {
+      if (cards.length !== 2) return false;
+      return getCardSplitValue(cards[0].rank) === getCardSplitValue(cards[1].rank);
+    }
+
+    /**
+     * リアルタイム厳密確率計算エンジン
+     * 場に見えている全カード（自分の手札＋他プレイヤーの手札＋ディーラーの公開札）を山札から除外した
+     * 「未知の残り全カード（state.shoe + ディーラー伏せ札）」を1枚ずつシミュレートして確率を算出
+     */
+    function calculateNextHitOdds(handCards) {
+      const unseenPool = [...state.shoe];
+      for (const dc of state.dealerCards) {
+        if (dc.hidden) {
+          unseenPool.push({ suit: dc.suit, hex: dc.hex, rank: dc.rank });
+        }
+      }
+
+      const totalUnseen = unseenPool.length;
+      if (totalUnseen === 0) {
+        return { exact21: '0.0', range17to21: '0.0', safe: '0.0', bust: '0.0', safeGuide: '-' };
+      }
+
+      let count21 = 0;
+      let count17to21 = 0;
+      let countSafe = 0;
+      let countBust = 0;
+
+      for (const candidate of unseenPool) {
+        const nextEval = evaluateCards([...handCards, candidate], false);
+        if (nextEval.isBust) {
+          countBust++;
+        } else {
+          countSafe++;
+          if (nextEval.total === 21) count21++;
+          if (nextEval.total >= 17 && nextEval.total <= 21) count17to21++;
+        }
+      }
+
+      // セーフ上限ガイド（どの数字以下を引けばバーストしないか）
+      const currentEval = evaluateCards(handCards, false);
+      let safeGuide = '';
+      if (currentEval.isSoft) {
+        safeGuide = 'ソフト手: 次の1枚は絶対バーストなし';
+      } else {
+        const maxSafeVal = 21 - currentEval.total;
+        if (maxSafeVal >= 10) {
+          safeGuide = 'どの札でもセーフ';
+        } else if (maxSafeVal <= 0) {
+          safeGuide = 'すでに21';
+        } else if (maxSafeVal === 1) {
+          safeGuide = 'A のみセーフ';
+        } else {
+          safeGuide = `${maxSafeVal} 以下ならセーフ`;
+        }
+      }
+
+      return {
+        exact21: ((count21 / totalUnseen) * 100).toFixed(1),
+        range17to21: ((count17to21 / totalUnseen) * 100).toFixed(1),
+        safe: ((countSafe / totalUnseen) * 100).toFixed(1),
+        bust: ((countBust / totalUnseen) * 100).toFixed(1),
+        safeGuide
+      };
+    }
+
+    // ==================== ラウンド・オールイン判定 ====================
+
+    function isFinalRound() {
+      return state.maxRounds > 0 && state.currentRound === state.maxRounds;
+    }
+
+    function isFinalAllInEnabled() {
+      return isFinalRound() && state.rules.finalAllIn;
+    }
+
+    function getPlayerTotalOwnedChips(player) {
+      const currentBetSum = player.hands.reduce((sum, h) => sum + h.bet, 0);
+      return player.chips + currentBetSum;
+    }
+
+    function getEffectiveMaxBet(player) {
+      const totalOwned = getPlayerTotalOwnedChips(player);
+      if (isFinalAllInEnabled() && totalOwned > state.maxBet) {
+        return totalOwned;
+      }
+      return state.maxBet;
+    }
+
+    // ==================== セットアップ画面ロジック ====================
+
+    function applyPreset(presetName) {
+      const splitCheckbox = document.getElementById('ruleSplit');
+      const surrenderCheckbox = document.getElementById('ruleSurrender');
+
+      if (presetName === 'standard') {
+        splitCheckbox.checked = false;
+        surrenderCheckbox.checked = false;
+      } else if (presetName === 'custom') {
+        splitCheckbox.checked = true;
+        surrenderCheckbox.checked = true;
+      }
+      syncPresetUI();
+    }
+
+    function syncPresetUI() {
+      const isSplit = document.getElementById('ruleSplit').checked;
+      const isSurrender = document.getElementById('ruleSurrender').checked;
+      const stdBtn = document.getElementById('presetStandardBtn');
+      const cstBtn = document.getElementById('presetCustomBtn');
+
+      if (!isSplit && !isSurrender) {
+        stdBtn.className = 'btn-tactile p-3 rounded-2xl border-2 border-emerald-600 bg-emerald-50 text-left transition';
+        stdBtn.querySelector('div:first-child').className = 'font-extrabold text-emerald-900 text-sm sm:text-base';
+        cstBtn.className = 'btn-tactile p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-left transition';
+        cstBtn.querySelector('div:first-child').className = 'font-extrabold text-slate-800 text-sm sm:text-base';
+      } else {
+        cstBtn.className = 'btn-tactile p-3 rounded-2xl border-2 border-emerald-600 bg-emerald-50 text-left transition';
+        cstBtn.querySelector('div:first-child').className = 'font-extrabold text-emerald-900 text-sm sm:text-base';
+        stdBtn.className = 'btn-tactile p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-left transition';
+        stdBtn.querySelector('div:first-child').className = 'font-extrabold text-slate-800 text-sm sm:text-base';
+      }
+    }
+
+    function changeSetupCount(delta) {
+      const next = Math.max(1, Math.min(8, state.setupCount + delta));
+      if (next === state.setupCount) return;
+      state.setupCount = next;
+      document.getElementById('setupPlayerCount').textContent = `${state.setupCount}人`;
+      renderSetupNames();
+    }
+
+    function updateSetupPlayerName(index, value) {
+      state.playerNames[index] = value;
+    }
+
+    function renderSetupNames() {
+      const grid = document.getElementById('setupPlayerNamesGrid');
+      if (!grid) return;
+
+      let html = '';
+      for (let i = 0; i < state.setupCount; i++) {
+        html += `
+          <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2">
+            <span class="w-5 h-5 rounded-full bg-emerald-700 text-white text-[11px] font-extrabold flex items-center justify-center shrink-0">${i + 1}</span>
+            <input type="text" maxlength="12"
+              value="${escapeHtml(state.playerNames[i])}"
+              oninput="updateSetupPlayerName(${i}, this.value)"
+              placeholder="プレイヤー${i + 1}"
+              class="w-full min-w-0 bg-transparent text-xs sm:text-sm font-bold text-slate-800 focus:outline-none">
+          </div>
+        `;
+      }
+      grid.innerHTML = html;
+    }
+
+    function startGame() {
+      state.startingChips = parseInt(document.getElementById('setupStartingChips').value, 10) || 100;
+      state.maxBet = parseInt(document.getElementById('setupMaxBet').value, 10) || 100;
+      state.maxRounds = parseInt(document.getElementById('setupRounds').value, 10);
+      state.deckCount = parseInt(document.getElementById('setupDeckCount').value, 10) || 2;
+      state.rules.oddsNavi = document.getElementById('ruleOddsNavi').checked;
+      state.rules.split = document.getElementById('ruleSplit').checked;
+      state.rules.surrender = document.getElementById('ruleSurrender').checked;
+      state.rules.finalAllIn = document.getElementById('ruleFinalAllIn').checked;
+      state.currentRound = 1;
+      state.history = [];
+
+      buildAndShuffleShoe();
+
+      state.players = [];
+      for (let i = 0; i < state.setupCount; i++) {
+        const cleanName = (state.playerNames[i] || '').trim() || `プレイヤー${i + 1}`;
+        state.players.push({
+          id: i,
+          name: cleanName,
+          chips: state.startingChips,
+          lastBet: Math.min(10, state.maxBet),
+          lastDelta: null,
+          deltaTimestamp: 0,
+          isAllInRound: false,
+          hands: [createEmptyHand(0)]
+        });
+      }
+
+      document.getElementById('setupScreen').classList.add('hidden');
+      document.getElementById('gameScreen').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+
+      initRoundBetting();
+    }
+
+    // ==================== ベットフェーズ ====================
+
+    function initRoundBetting() {
+      // 残り山札が全デッキの25%未満になったら自動リシャッフル
+      const minThreshold = Math.max(15, Math.floor(state.deckCount * 52 * 0.25));
+      if (state.shoe.length < minThreshold) {
+        buildAndShuffleShoe();
+      }
+
+      state.phase = 'BETTING';
+      state.dealerCards = [];
+      state.players.forEach(p => {
+        p.isAllInRound = false;
+        p.hands = [createEmptyHand(0)];
+      });
+      renderAll();
+    }
+
+    function triggerFinalRoundFromEndless() {
+      if (state.maxRounds !== 0) return;
+      state.maxRounds = state.currentRound;
+      renderAll();
+    }
+
+    function setDirectBet(playerId, rawValue) {
+      if (state.phase !== 'BETTING') return;
+      const p = state.players[playerId];
+      const hand = p.hands[0];
+      const effectiveMax = getEffectiveMaxBet(p);
+      const totalOwned = getPlayerTotalOwnedChips(p);
+
+      let parsed = parseInt(rawValue, 10);
+      if (isNaN(parsed) || parsed < 0) parsed = 0;
+      if (parsed > effectiveMax) parsed = effectiveMax;
+
+      const diff = parsed - hand.bet;
+      p.chips -= diff;
+      hand.bet = parsed;
+      p.isAllInRound = isFinalAllInEnabled() && totalOwned > 0 && parsed === totalOwned;
+
+      renderPlayers();
+      renderDealerControls();
+    }
+
+    function doAllIn(playerId) {
+      if (state.phase !== 'BETTING' || !isFinalAllInEnabled()) return;
+      const p = state.players[playerId];
+      const totalOwned = getPlayerTotalOwnedChips(p);
+      if (totalOwned <= 0) return;
+      setDirectBet(playerId, totalOwned);
+    }
+
+    function adjustBet(playerId, delta) {
+      if (state.phase !== 'BETTING') return;
+      const p = state.players[playerId];
+      const currentBet = p.hands[0].bet;
+      const effectiveMax = getEffectiveMaxBet(p);
+      const nextBet = Math.max(0, Math.min(effectiveMax, currentBet + delta));
+      setDirectBet(playerId, nextBet);
+    }
+
+    function clearBet(playerId) {
+      setDirectBet(playerId, 0);
+    }
+
+    function repeatLastBet(playerId) {
+      if (state.phase !== 'BETTING') return;
+      const p = state.players[playerId];
+      const effectiveMax = getEffectiveMaxBet(p);
+      const target = Math.min(p.lastBet || 10, effectiveMax);
+      setDirectBet(playerId, target);
+    }
+
+    function betAllSame(amount) {
+      if (state.phase !== 'BETTING') return;
+      state.players.forEach(p => {
+        const effectiveMax = getEffectiveMaxBet(p);
+        const totalOwned = getPlayerTotalOwnedChips(p);
+        const target = Math.max(0, Math.min(effectiveMax, amount));
+        const diff = target - p.hands[0].bet;
+        p.chips -= diff;
+        p.hands[0].bet = target;
+        p.isAllInRound = isFinalAllInEnabled() && totalOwned > 0 && target === totalOwned;
+      });
+      renderPlayers();
+      renderDealerControls();
+    }
+
+    /**
+     * ベット確定＆初期カード配布
+     */
+    function dealInitialCards() {
+      const activePlayers = state.players.filter(p => p.hands[0].bet > 0);
+      if (activePlayers.length === 0) return;
+
+      state.players.forEach(p => {
+        if (p.hands[0].bet > 0) {
+          p.lastBet = Math.min(p.hands[0].bet, state.maxBet);
+        }
+      });
+
+      // 1巡目・2巡目配布
+      activePlayers.forEach(p => {
+        p.hands[0].cards.push(drawCard(false));
+      });
+      state.dealerCards.push(drawCard(false)); // ディーラー1枚目（表）
+
+      activePlayers.forEach(p => {
+        p.hands[0].cards.push(drawCard(false));
+        const ev = evaluateCards(p.hands[0].cards, false);
+        if (ev.total === 21) {
+          p.hands[0].stood = true;
+        }
+      });
+      state.dealerCards.push(drawCard(true)); // ディーラー2枚目（伏せ札）
+
+      state.phase = 'ACTION';
+      renderAll();
+    }
+
+    // ==================== プレイヤーアクション ====================
+
+    function doHit(playerId, handIdx) {
+      if (state.phase !== 'ACTION') return;
+      const hand = state.players[playerId].hands[handIdx];
+      if (hand.stood || hand.folded || hand.surrendered) return;
+
+      hand.cards.push(drawCard(false));
+      const ev = evaluateCards(hand.cards, false);
+      if (ev.isBust || ev.total === 21) {
+        hand.stood = true;
+      }
+      renderAll();
+    }
+
+    function doStand(playerId, handIdx) {
+      if (state.phase !== 'ACTION') return;
+      const hand = state.players[playerId].hands[handIdx];
+      if (hand.stood || hand.folded || hand.surrendered) return;
+      hand.stood = true;
+      renderAll();
+    }
+
+    function doDoubleDown(playerId, handIdx) {
+      if (state.phase !== 'ACTION') return;
+      const p = state.players[playerId];
+      const hand = p.hands[handIdx];
+      if (hand.stood || hand.doubled || hand.folded || hand.surrendered || hand.cards.length !== 2) return;
+
+      p.chips -= hand.bet;
+      hand.bet *= 2;
+      hand.doubled = true;
+      hand.cards.push(drawCard(false));
+      hand.stood = true;
+      renderAll();
+    }
+
+    function doSplit(playerId) {
+      if (state.phase !== 'ACTION' || !state.rules.split) return;
+      const p = state.players[playerId];
+      if (p.hands.length > 1) return;
+      const firstHand = p.hands[0];
+      if (firstHand.bet <= 0 || !canHandSplit(firstHand.cards)) return;
+
+      p.chips -= firstHand.bet;
+      const secondCard = firstHand.cards.pop();
+
+      firstHand.isSplitHand = true;
+      firstHand.stood = false;
+      firstHand.cards.push(drawCard(false));
+      if (evaluateCards(firstHand.cards, false).total === 21) {
+        firstHand.stood = true;
+      }
+
+      const secondHand = createEmptyHand(firstHand.bet);
+      secondHand.isSplitHand = true;
+      secondHand.cards = [secondCard, drawCard(false)];
+      if (evaluateCards(secondHand.cards, false).total === 21) {
+        secondHand.stood = true;
+      }
+
+      p.hands.push(secondHand);
+      renderAll();
+    }
+
+    function doFoldOrSurrender(playerId, handIdx) {
+      if (state.phase !== 'ACTION') return;
+      const p = state.players[playerId];
+      const hand = p.hands[handIdx];
+      if (hand.stood || hand.folded || hand.surrendered || hand.cards.length !== 2 || hand.isSplitHand) return;
+
+      if (state.rules.surrender) {
+        const refund = Math.ceil(hand.bet / 2);
+        p.chips += refund;
+        hand.surrendered = true;
+        hand.stood = true;
+        hand.outcome = 'SURRENDER';
+      } else {
+        hand.folded = true;
+        hand.stood = true;
+        hand.outcome = 'LOSE';
+      }
+      renderAll();
+    }
+
+    // ==================== ディーラー解決＆自動精算 ====================
+
+    function resolveDealerAndSettle() {
+      if (state.phase !== 'ACTION') return;
+
+      // 未スタンドのプレイヤーは自動スタンド扱い
+      state.players.forEach(p => {
+        p.hands.forEach(h => {
+          if (h.bet > 0 && !h.stood && !h.folded && !h.surrendered) {
+            h.stood = true;
+          }
+        });
+      });
+
+      // ディーラーの伏せ札をオープン
+      state.dealerCards.forEach(c => {
+        c.hidden = false;
+      });
+
+      // 勝負が残っている子がいるか確認
+      const hasContendingHand = state.players.some(p =>
+        p.hands.some(h => {
+          if (h.bet <= 0 || h.folded || h.surrendered) return false;
+          const ev = evaluateCards(h.cards, false);
+          return !ev.isBust;
+        })
+      );
+
+      // ソフト17以上でスタンド（16以下はヒット）
+      if (hasContendingHand) {
+        let dEval = evaluateCards(state.dealerCards, false);
+        while (dEval.total < 17) {
+          state.dealerCards.push(drawCard(false));
+          dEval = evaluateCards(state.dealerCards, false);
+        }
+      }
+
+      const finalDealerEval = evaluateCards(state.dealerCards, false);
+      const now = Date.now();
+
+      const roundSummary = {
+        round: state.currentRound,
+        dealer: finalDealerEval.isBJ
+          ? 'BJ (21)'
+          : finalDealerEval.isBust
+            ? `BUST (${finalDealerEval.total})`
+            : `${finalDealerEval.total}`,
+        records: []
+      };
+
+      state.players.forEach(p => {
+        let totalBetThisRound = 0;
+        let totalReturnThisRound = 0;
+
+        p.hands.forEach(h => {
+          if (h.bet <= 0) return;
+          totalBetThisRound += h.bet;
+
+          if (h.surrendered) {
+            h.outcome = 'SURRENDER';
+            totalReturnThisRound += Math.ceil(h.bet / 2);
+            return;
+          }
+
+          const pEval = evaluateCards(h.cards, false);
+          if (h.folded || pEval.isBust) {
+            h.outcome = 'LOSE';
+            return;
+          }
+
+          const isNaturalBJ = pEval.isBJ && !h.isSplitHand;
+          if (isNaturalBJ) {
+            if (finalDealerEval.isBJ) {
+              h.outcome = 'PUSH';
+              p.chips += h.bet;
+              totalReturnThisRound += h.bet;
+            } else {
+              h.outcome = 'BJ_WIN';
+              const payout = Math.floor(h.bet * 2.5);
+              p.chips += payout;
+              totalReturnThisRound += payout;
+            }
+            return;
+          }
+
+          if (finalDealerEval.isBJ) {
+            h.outcome = 'LOSE';
+            return;
+          }
+
+          if (finalDealerEval.isBust || pEval.total > finalDealerEval.total) {
+            h.outcome = 'WIN';
+            const payout = h.bet * 2;
+            p.chips += payout;
+            totalReturnThisRound += payout;
+          } else if (pEval.total === finalDealerEval.total) {
+            h.outcome = 'PUSH';
+            p.chips += h.bet;
+            totalReturnThisRound += h.bet;
+          } else {
+            h.outcome = 'LOSE';
+          }
+        });
+
+        if (totalBetThisRound > 0) {
+          const netDelta = totalReturnThisRound - totalBetThisRound;
+          p.lastDelta = netDelta;
+          p.deltaTimestamp = now;
+          roundSummary.records.push({
+            name: p.name,
+            delta: netDelta,
+            chipsAfter: p.chips
+          });
+        } else {
+          p.lastDelta = null;
+        }
+      });
+
+      state.history.unshift(roundSummary);
+      state.phase = 'SETTLEMENT';
+      renderAll();
+    }
+
+    function proceedNextRoundOrFinish() {
+      if (state.maxRounds > 0 && state.currentRound >= state.maxRounds) {
+        showFinalRanking();
+      } else {
+        state.currentRound += 1;
+        initRoundBetting();
+      }
+    }
+
+    // ==================== レンダリング関数 ====================
+
+    function renderPlayingCardHTML(card) {
+      if (card.hidden) {
+        return `<div class="playing-card playing-card-back" title="伏せ札"></div>`;
+      }
+
+      const textColor = card.hex || (card.suit === '♥' || card.suit === '♦' ? '#dc2626' : '#0f172a');
+      const isFaceCard = ['J', 'Q', 'K'].includes(card.rank);
+      const isAce = card.rank === 'A';
+
+      let centerHTML = '';
+      if (isFaceCard) {
+        centerHTML = `
+          <div class="card-center-art" style="color: ${textColor};">
+            <span class="font-black text-[22px] sm:text-[25px] leading-none tracking-tighter opacity-90">${card.rank}</span>
+            <span class="text-[14px] sm:text-[16px] leading-none mt-0.5">${card.suit}</span>
+          </div>
+        `;
+      } else if (isAce) {
+        centerHTML = `
+          <div class="card-center-art" style="color: ${textColor};">
+            <span class="text-[30px] sm:text-[34px] leading-none">${card.suit}</span>
+          </div>
+        `;
+      } else {
+        centerHTML = `
+          <div class="card-center-art" style="color: ${textColor};">
+            <span class="text-[26px] sm:text-[30px] leading-none">${card.suit}</span>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="playing-card" style="color: ${textColor};" aria-label="${card.suit}${card.rank}">
+          <div class="card-corner card-corner-tl">
+            <span class="card-rank-text">${card.rank}</span>
+            <span class="card-suit-small">${card.suit}</span>
+          </div>
+          ${centerHTML}
+          <div class="card-corner card-corner-br">
+            <span class="card-rank-text">${card.rank}</span>
+            <span class="card-suit-small">${card.suit}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAll() {
+      renderTopBar();
+      renderDealerArea();
+      renderPlayers();
+    }
+
+    function renderTopBar() {
+      const roundEl = document.getElementById('roundIndicator');
+      const finalRound = isFinalRound();
+      const allInUnlocked = isFinalAllInEnabled();
+
+      if (finalRound) {
+        roundEl.textContent = `FINAL (${state.currentRound}/${state.maxRounds})`;
+      } else {
+        roundEl.textContent = state.maxRounds > 0
+          ? `${state.currentRound} / ${state.maxRounds}`
+          : `${state.currentRound} (無制限)`;
+      }
+
+      document.getElementById('shoeRemainingIndicator').textContent = `${state.shoe.length}枚`;
+
+      const bannerEl = document.getElementById('finalRoundBanner');
+      const bannerTextEl = document.getElementById('finalRoundBannerText');
+      if (finalRound) {
+        bannerEl.classList.remove('hidden');
+        bannerTextEl.textContent = allInUnlocked
+          ? '🏆 FINAL ROUND — 所持チップ全額オールイン解禁！'
+          : '🏆 FINAL ROUND — 最終ラウンド！';
+      } else {
+        bannerEl.classList.add('hidden');
+      }
+
+      const endlessBtn = document.getElementById('endlessToFinalBtn');
+      if (state.maxRounds === 0) {
+        endlessBtn.classList.remove('hidden');
+      } else {
+        endlessBtn.classList.add('hidden');
+      }
+
+      const stepBet = document.getElementById('stepBet');
+      const stepAction = document.getElementById('stepAction');
+      const stepSettle = document.getElementById('stepSettle');
+      const activeStepCls = 'px-2 py-1 rounded-lg bg-amber-400 text-slate-900 font-extrabold transition text-center flex-1 sm:flex-initial';
+      const inactiveStepCls = 'px-2 py-1 rounded-lg text-white/60 transition text-center flex-1 sm:flex-initial';
+
+      stepBet.className = state.phase === 'BETTING' ? activeStepCls : inactiveStepCls;
+      stepAction.className = state.phase === 'ACTION' ? activeStepCls : inactiveStepCls;
+      stepSettle.className = state.phase === 'SETTLEMENT' ? activeStepCls : inactiveStepCls;
+
+      const oddsBadge = document.getElementById('badgeOddsNavi');
+      oddsBadge.textContent = `確率ナビ: ${state.rules.oddsNavi ? 'ON' : 'OFF'}`;
+      oddsBadge.className = state.rules.oddsNavi
+        ? 'px-2 py-0.5 rounded-lg font-bold bg-sky-500/25 text-sky-200 border border-sky-400/30'
+        : 'px-2 py-0.5 rounded-lg font-bold bg-white/10 text-slate-300';
+
+      const splitBadge = document.getElementById('badgeSplit');
+      splitBadge.textContent = `スプリット: ${state.rules.split ? 'ON' : 'OFF'}`;
+      splitBadge.className = state.rules.split
+        ? 'px-2 py-0.5 rounded-lg font-bold bg-emerald-500/25 text-emerald-200 border border-emerald-400/30'
+        : 'px-2 py-0.5 rounded-lg font-bold bg-white/10 text-slate-300';
+
+      const surrBadge = document.getElementById('badgeSurrender');
+      surrBadge.textContent = state.rules.surrender ? 'サレンダー: ON' : '降りる: 全額没収';
+      surrBadge.className = state.rules.surrender
+        ? 'px-2 py-0.5 rounded-lg font-bold bg-amber-500/25 text-amber-200 border border-amber-400/30'
+        : 'px-2 py-0.5 rounded-lg font-bold bg-white/10 text-slate-300';
+    }
+
+    function renderDealerArea() {
+      const scoreBadge = document.getElementById('dealerScoreBadge');
+      const cardsArea = document.getElementById('dealerCardsArea');
+
+      if (state.dealerCards.length === 0) {
+        scoreBadge.textContent = 'ベット受付中';
+        scoreBadge.className = 'px-2.5 py-0.5 rounded-full bg-white/15 text-slate-300 font-bold text-xs';
+        cardsArea.innerHTML = `<div class="text-xs text-slate-400 italic">ベット確定後にカードが配られます</div>`;
+      } else {
+        const hasHidden = state.dealerCards.some(c => c.hidden);
+        const dEval = evaluateCards(state.dealerCards, hasHidden);
+
+        if (hasHidden) {
+          scoreBadge.textContent = `公開札: ${dEval.total}${dEval.isSoft ? ' (ソフト)' : ''}`;
+          scoreBadge.className = 'px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-black text-xs sm:text-sm';
+        } else if (dEval.isBJ) {
+          scoreBadge.textContent = 'BLACKJACK (21)';
+          scoreBadge.className = 'px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-xs sm:text-sm';
+        } else if (dEval.isBust) {
+          scoreBadge.textContent = `BUST (${dEval.total})`;
+          scoreBadge.className = 'px-2.5 py-0.5 rounded-full bg-rose-500 text-white font-black text-xs sm:text-sm';
+        } else {
+          scoreBadge.textContent = `合計: ${dEval.total}`;
+          scoreBadge.className = 'px-2.5 py-0.5 rounded-full bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm';
+        }
+
+        cardsArea.innerHTML = state.dealerCards.map(renderPlayingCardHTML).join('');
+      }
+
+      renderDealerControls();
+    }
+
+    function renderDealerControls() {
+      const inst = document.getElementById('phaseInstruction');
+      const area = document.getElementById('dealerControlArea');
+
+      if (state.phase === 'BETTING') {
+        const allInUnlocked = isFinalAllInEnabled();
+        inst.textContent = allInUnlocked
+          ? '🏆 最終ラウンド！所持チップ1枚以上のプレイヤーは「ALL IN」で全額ベット可能です。'
+          : `各プレイヤーのベット枚数（最大${state.maxBet}枚・直接入力可）を設定してください。`;
+        const hasAnyBet = state.players.some(p => p.hands[0].bet > 0);
+
+        area.innerHTML = `
+          <div class="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
+            <span class="text-[11px] text-slate-400 font-bold mr-0.5">一括:</span>
+            <button type="button" onclick="betAllSame(5)" class="btn-tactile px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white">5</button>
+            <button type="button" onclick="betAllSame(10)" class="btn-tactile px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white">10</button>
+            <button type="button" onclick="betAllSame(25)" class="btn-tactile px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white">25</button>
+            <button type="button" onclick="betAllSame(${state.maxBet})" class="btn-tactile px-2.5 py-2 rounded-xl bg-amber-500/25 hover:bg-amber-500/35 border border-amber-400/30 text-xs font-bold text-amber-200">MAX(${state.maxBet})</button>
+            <button type="button" onclick="dealInitialCards()" ${hasAnyBet ? '' : 'disabled'}
+              class="btn-tactile flex-1 sm:flex-initial px-4 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm shadow-lg ${hasAnyBet ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}">
+              ベット確定 ▶ カードを配る
+            </button>
+          </div>
+        `;
+      } else if (state.phase === 'ACTION') {
+        const allDone = state.players.every(p =>
+          p.hands.every(h => h.bet <= 0 || h.stood || h.folded || h.surrendered)
+        );
+        inst.textContent = allDone
+          ? '全員のアクションが完了しました！「親オープン＆精算」を押してください。'
+          : '確率ナビを参考に「ヒット / スタンド / ダブル」を選択してください。';
+
+        area.innerHTML = `
+          <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <button type="button" onclick="resolveDealerAndSettle()"
+              class="btn-tactile flex-1 sm:flex-initial px-4 py-3 rounded-xl font-extrabold text-xs sm:text-sm shadow-lg ${allDone ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 ring-2 ring-white/70' : 'bg-amber-500/85 hover:bg-amber-400 text-slate-950'}">
+              🎩 親オープン＆自動精算 ▶
+            </button>
+          </div>
+        `;
+      } else if (state.phase === 'SETTLEMENT') {
+        const isLast = state.maxRounds > 0 && state.currentRound >= state.maxRounds;
+        inst.textContent = 'ラウンド精算が完了しました！チップ増減を確認して次へ進んでください。';
+
+        area.innerHTML = `
+          <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <button type="button" onclick="proceedNextRoundOrFinish()"
+              class="btn-tactile flex-1 sm:flex-initial px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm shadow-lg">
+              ${isLast ? '🏆 最終ランキングを見る ▶' : '次のラウンドへ ▶'}
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    function renderPlayers() {
+      const grid = document.getElementById('playersGrid');
+      if (!grid) return;
+
+      const now = Date.now();
+      const allInUnlocked = isFinalAllInEnabled();
+
+      grid.innerHTML = state.players.map(p => {
+        const totalBet = p.hands.reduce((sum, h) => sum + h.bet, 0);
+        const totalOwned = getPlayerTotalOwnedChips(p);
+        const effectiveMax = getEffectiveMaxBet(p);
+        const showDelta = p.lastDelta !== null && (now - p.deltaTimestamp < 4800);
+        const deltaText = p.lastDelta > 0 ? `+${p.lastDelta}` : p.lastDelta === 0 ? '±0' : `${p.lastDelta}`;
+        const deltaColor = p.lastDelta > 0 ? 'bg-emerald-500 text-white' : p.lastDelta < 0 ? 'bg-rose-500 text-white' : 'bg-slate-600 text-white';
+
+        const isAllInActive = allInUnlocked && totalOwned > 0 && (
+          state.phase === 'BETTING' ? p.hands[0].bet === totalOwned : p.isAllInRound
+        );
+
+        const isDebt = p.chips < 0;
+        const chipsColorClass = isDebt ? 'text-rose-600' : 'text-slate-900';
+        const cardBorderClass = isAllInActive
+          ? 'allin-card-glow ring-2 ring-amber-400 bg-gradient-to-b from-amber-50/95 to-white'
+          : isDebt
+            ? 'ring-2 ring-rose-400/70'
+            : '';
+
+        let bodyHtml = '';
+
+        if (state.phase === 'BETTING') {
+          const bet = p.hands[0].bet;
+          const canAllIn = allInUnlocked && totalOwned > 0;
+
+          let finalRoundBetControls = '';
+          if (allInUnlocked) {
+            if (canAllIn) {
+              finalRoundBetControls = `
+                <div class="flex items-center justify-between gap-2 pt-0.5">
+                  <span class="text-[11px] font-bold text-amber-800 shrink-0">上限: <strong>${effectiveMax}枚</strong></span>
+                  <button type="button" onclick="doAllIn(${p.id})"
+                    class="btn-tactile flex-1 py-2.5 px-3 rounded-xl font-black text-xs sm:text-sm tracking-wide shadow-md transition ${isAllInActive ? 'bg-gradient-to-r from-red-600 to-amber-500 text-white ring-2 ring-amber-300' : 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-white'}">
+                    🔥 ALL IN (全額 ${totalOwned}枚)
+                  </button>
+                </div>
+              `;
+            } else {
+              finalRoundBetControls = `
+                <div class="px-2.5 py-1.5 rounded-xl bg-rose-100/90 border border-rose-200 text-[11px] font-extrabold text-rose-700 text-center">
+                  借金中のため通常ベットのみ（上限 ${state.maxBet}枚）
+                </div>
+              `;
+            }
+          }
+
+          bodyHtml = `
+            <div class="mt-2.5 bg-slate-100 rounded-2xl p-2.5 space-y-2 border border-slate-200/70">
+              <div class="flex items-center justify-between gap-1.5">
+                <div class="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded-xl border-2 ${isAllInActive ? 'border-red-500' : 'border-amber-400/80'} shadow-inner flex-1 min-w-0">
+                  <span class="text-[11px] font-extrabold text-slate-400 shrink-0">BET</span>
+                  <input type="number" inputmode="numeric" min="0" max="${effectiveMax}" value="${bet}"
+                    onchange="setDirectBet(${p.id}, this.value)"
+                    onfocus="this.select()"
+                    aria-label="${escapeHtml(p.name)}のベット枚数"
+                    class="w-full min-w-0 text-right text-xl font-black ${isAllInActive ? 'text-red-600' : 'text-amber-600'} bg-transparent focus:outline-none">
+                  <span class="text-xs font-bold text-slate-500 shrink-0">枚</span>
+                </div>
+
+                <div class="flex items-center gap-1 shrink-0">
+                  <button type="button" onclick="repeatLastBet(${p.id})" title="前回と同じ額をベット"
+                    class="btn-tactile px-2 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-[11px] font-extrabold text-slate-700">前回(${Math.min(p.lastBet, effectiveMax)})</button>
+                  <button type="button" onclick="setDirectBet(${p.id}, ${state.maxBet})" title="通常上限(${state.maxBet}枚)をベット"
+                    class="btn-tactile px-2 py-2.5 rounded-xl bg-amber-100 border border-amber-300 hover:bg-amber-200 text-[11px] font-extrabold text-amber-900">MAX</button>
+                  <button type="button" onclick="clearBet(${p.id})" title="0枚にリセット"
+                    class="btn-tactile px-2.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-rose-50 text-[11px] font-extrabold text-rose-600">0</button>
+                </div>
+              </div>
+
+              ${finalRoundBetControls}
+
+              <div class="grid grid-cols-6 gap-1">
+                <button type="button" onclick="adjustBet(${p.id}, -10)" ${bet <= 0 ? 'disabled' : ''}
+                  class="btn-tactile py-2.5 rounded-lg bg-rose-100 hover:bg-rose-200 disabled:opacity-35 text-rose-800 font-extrabold text-xs">-10</button>
+                <button type="button" onclick="adjustBet(${p.id}, -5)" ${bet <= 0 ? 'disabled' : ''}
+                  class="btn-tactile py-2.5 rounded-lg bg-rose-100 hover:bg-rose-200 disabled:opacity-35 text-rose-800 font-extrabold text-xs">-5</button>
+                <button type="button" onclick="adjustBet(${p.id}, -1)" ${bet <= 0 ? 'disabled' : ''}
+                  class="btn-tactile py-2.5 rounded-lg bg-rose-100 hover:bg-rose-200 disabled:opacity-35 text-rose-800 font-extrabold text-xs">-1</button>
+                <button type="button" onclick="adjustBet(${p.id}, 1)" ${bet >= effectiveMax ? 'disabled' : ''}
+                  class="btn-tactile py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-35 text-white font-extrabold text-xs">+1</button>
+                <button type="button" onclick="adjustBet(${p.id}, 5)" ${bet >= effectiveMax ? 'disabled' : ''}
+                  class="btn-tactile py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-35 text-white font-extrabold text-xs">+5</button>
+                <button type="button" onclick="adjustBet(${p.id}, 10)" ${bet >= effectiveMax ? 'disabled' : ''}
+                  class="btn-tactile py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-35 text-white font-extrabold text-xs">+10</button>
+              </div>
+            </div>
+          `;
+        } else {
+          if (totalBet === 0) {
+            bodyHtml = `
+              <div class="mt-2.5 py-6 rounded-2xl bg-slate-100 text-center text-xs font-bold text-slate-400">
+                このラウンドは不参加 (ベット0)
+              </div>
+            `;
+          } else {
+            const canSplit = state.phase === 'ACTION'
+              && state.rules.split
+              && p.hands.length === 1
+              && !p.hands[0].stood
+              && !p.hands[0].folded
+              && !p.hands[0].surrendered
+              && !p.hands[0].doubled
+              && canHandSplit(p.hands[0].cards);
+
+            const handsHtml = p.hands.map((h, idx) => {
+              const isSplit = p.hands.length > 1;
+              return renderHandBlock(p, h, idx, isSplit, canSplit);
+            }).join('');
+
+            bodyHtml = `<div class="mt-2.5 space-y-2.5">${handsHtml}</div>`;
+          }
+        }
+
+        return `
+          <div class="table-card rounded-3xl p-3.5 sm:p-4 relative flex flex-col justify-between ${cardBorderClass}">
+            ${showDelta ? `
+              <div class="delta-badge-anim absolute -top-2.5 right-3.5 px-3 py-1 rounded-full font-black text-xs sm:text-sm shadow-lg ${deltaColor} z-10">
+                ${deltaText} 枚
+              </div>
+            ` : ''}
+
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2 gap-2">
+              <div class="flex items-center gap-1.5 min-w-0 flex-wrap">
+                <span class="w-6 h-6 rounded-full ${isAllInActive ? 'bg-gradient-to-br from-amber-500 to-red-600' : isDebt ? 'bg-rose-600' : 'bg-emerald-700'} text-white text-xs font-extrabold flex items-center justify-center shrink-0">${p.id + 1}</span>
+                <span class="font-extrabold text-base text-slate-800 truncate">${escapeHtml(p.name)}</span>
+                ${isAllInActive ? '<span class="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-red-600 text-white text-[10px] font-black tracking-wider shadow-sm shrink-0">🔥 ALL IN!</span>' : ''}
+                ${isDebt ? '<span class="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 text-[10px] font-extrabold shrink-0">借金中</span>' : ''}
+              </div>
+              <div class="text-right shrink-0">
+                <div class="text-[10px] font-bold text-slate-400 leading-none">所持チップ</div>
+                <div class="text-lg font-black ${chipsColorClass} leading-tight">${p.chips} <span class="text-xs font-bold text-slate-500">枚</span></div>
+              </div>
+            </div>
+
+            ${bodyHtml}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderHandBlock(player, hand, handIdx, isSplit, canSplit) {
+      const evalRes = evaluateCards(hand.cards, false);
+      const isNaturalBJ = evalRes.isBJ && !hand.isSplitHand;
+
+      let scoreDisplay = evalRes.isSoft && evalRes.total < 21
+        ? `ソフト ${evalRes.total}`
+        : `${evalRes.total}`;
+      let scoreColor = 'text-slate-900';
+
+      if (hand.surrendered) {
+        scoreDisplay = 'サレンダー';
+        scoreColor = 'text-amber-600 text-base';
+      } else if (hand.folded) {
+        scoreDisplay = '降りた';
+        scoreColor = 'text-slate-400 text-base';
+      } else if (isNaturalBJ) {
+        scoreDisplay = 'BJ (21)';
+        scoreColor = 'text-amber-500 text-lg';
+      } else if (evalRes.isBust) {
+        scoreDisplay = `BUST (${evalRes.total})`;
+        scoreColor = 'text-rose-600 text-lg';
+      }
+
+      const tags = [];
+      if (hand.doubled) tags.push('<span class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-extrabold">2倍(DD)</span>');
+      if (hand.stood && !evalRes.isBust && !hand.folded && !hand.surrendered && state.phase === 'ACTION') {
+        tags.push('<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-extrabold">スタンド済</span>');
+      }
+
+      const cardsHtml = hand.cards.map(renderPlayingCardHTML).join('');
+
+      let oddsNaviHtml = '';
+      let controlsHtml = '';
+
+      if (state.phase === 'ACTION') {
+        const locked = hand.stood || hand.folded || hand.surrendered || evalRes.isBust;
+
+        // リアルタイム厳密確率ナビ表示（アクション可能なとき）
+        if (state.rules.oddsNavi && !locked && evalRes.total < 21) {
+          const odds = calculateNextHitOdds(hand.cards);
+          const bustNum = parseFloat(odds.bust);
+          const bustBadgeColor = bustNum >= 60
+            ? 'text-rose-600'
+            : bustNum >= 35
+              ? 'text-amber-600'
+              : 'text-emerald-600';
+
+          oddsNaviHtml = `
+            <div class="mt-2 bg-sky-50/90 border border-sky-200/80 rounded-xl p-2 space-y-1.5">
+              <div class="flex items-center justify-between text-[10px] font-extrabold text-sky-900">
+                <span>📊 次の1枚ヒット確率ナビ</span>
+                <span class="text-sky-700">${odds.safeGuide}</span>
+              </div>
+              <div class="grid grid-cols-4 gap-1 text-center">
+                <div class="bg-white rounded-lg py-1 px-1 border border-sky-100">
+                  <div class="text-[9px] font-bold text-slate-500">🎯 21達成</div>
+                  <div class="text-xs font-black text-amber-600">${odds.exact21}%</div>
+                </div>
+                <div class="bg-white rounded-lg py-1 px-1 border border-sky-100">
+                  <div class="text-[9px] font-bold text-slate-500">✨ 17〜21</div>
+                  <div class="text-xs font-black text-sky-700">${odds.range17to21}%</div>
+                </div>
+                <div class="bg-white rounded-lg py-1 px-1 border border-sky-100">
+                  <div class="text-[9px] font-bold text-slate-500">🛡️ セーフ</div>
+                  <div class="text-xs font-black text-emerald-600">${odds.safe}%</div>
+                </div>
+                <div class="bg-white rounded-lg py-1 px-1 border border-sky-100">
+                  <div class="text-[9px] font-bold text-slate-500">💥 バースト</div>
+                  <div class="text-xs font-black ${bustBadgeColor}">${odds.bust}%</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        const canDouble = !locked && !hand.doubled && hand.cards.length === 2;
+        const canSurrenderOrFold = !locked && hand.cards.length === 2 && !hand.isSplitHand;
+        const foldLabel = state.rules.surrender ? 'サレンダー' : '降りる';
+
+        controlsHtml = `
+          <div class="mt-2 grid ${canSplit ? 'grid-cols-5' : 'grid-cols-4'} gap-1">
+            <button type="button" onclick="doHit(${player.id}, ${handIdx})" ${locked ? 'disabled' : ''}
+              class="btn-tactile py-2.5 rounded-xl text-xs font-extrabold bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-35 shadow-sm">
+              ヒット
+            </button>
+            <button type="button" onclick="doStand(${player.id}, ${handIdx})" ${locked ? 'disabled' : ''}
+              class="btn-tactile py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-35 shadow-sm">
+              スタンド
+            </button>
+            <button type="button" onclick="doDoubleDown(${player.id}, ${handIdx})" ${canDouble ? '' : 'disabled'}
+              class="btn-tactile py-2.5 rounded-xl text-xs font-extrabold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-35 shadow-sm">
+              ダブル
+            </button>
+            ${canSplit ? `
+              <button type="button" onclick="doSplit(${player.id})"
+                class="btn-tactile py-2.5 rounded-xl text-xs font-extrabold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm">
+                スプリット
+              </button>
+            ` : ''}
+            <button type="button" onclick="doFoldOrSurrender(${player.id}, ${handIdx})" ${canSurrenderOrFold ? '' : 'disabled'}
+              class="btn-tactile py-2.5 rounded-xl text-[11px] font-extrabold ${state.rules.surrender ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : 'bg-rose-100 hover:bg-rose-200 text-rose-700'} disabled:opacity-35">
+              ${foldLabel}
+            </button>
+          </div>
+        `;
+      } else if (state.phase === 'SETTLEMENT') {
+        let outcomeBadge = '';
+        if (hand.outcome === 'BJ_WIN') {
+          const profit = Math.floor(hand.bet * 1.5);
+          outcomeBadge = `<span class="px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs">BJ勝ち (+${profit})</span>`;
+        } else if (hand.outcome === 'WIN') {
+          outcomeBadge = `<span class="px-3 py-1 rounded-xl bg-emerald-600 text-white font-black text-xs">勝ち (+${hand.bet})</span>`;
+        } else if (hand.outcome === 'PUSH') {
+          outcomeBadge = `<span class="px-3 py-1 rounded-xl bg-slate-500 text-white font-black text-xs">引き分け (±0)</span>`;
+        } else if (hand.outcome === 'SURRENDER') {
+          const loss = hand.bet - Math.ceil(hand.bet / 2);
+          outcomeBadge = `<span class="px-3 py-1 rounded-xl bg-amber-100 text-amber-800 font-black text-xs">サレンダー (-${loss})</span>`;
+        } else if (hand.outcome === 'LOSE') {
+          outcomeBadge = `<span class="px-3 py-1 rounded-xl bg-rose-600 text-white font-black text-xs">負け (-${hand.bet})</span>`;
+        }
+
+        controlsHtml = `
+          <div class="mt-2 pt-2 border-t border-slate-200/80 flex items-center justify-between">
+            <span class="text-[11px] font-bold text-slate-400">勝敗結果</span>
+            ${outcomeBadge}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="bg-slate-50 rounded-2xl p-2.5 border ${hand.stood && state.phase === 'ACTION' ? 'border-emerald-300 bg-emerald-50/40' : 'border-slate-200/90'}">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              ${isSplit ? `<span class="px-2 py-0.5 rounded-md bg-indigo-600 text-white text-[10px] font-extrabold">Hand ${handIdx + 1}</span>` : ''}
+              <span class="text-xs font-bold text-slate-500">BET: <strong class="text-slate-800">${hand.bet}</strong></span>
+              ${tags.join('')}
+            </div>
+            <div class="text-lg font-black tracking-tight ${scoreColor}">
+              ${scoreDisplay}
+            </div>
+          </div>
+
+          <!-- トランプ手札描画 -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5">
+            ${cardsHtml}
+          </div>
+
+          ${oddsNaviHtml}
+          ${controlsHtml}
+        </div>
+      `;
+    }
+
+    // ==================== モーダル・ユーティリティ ====================
+
+    function openMidGameRulesModal() {
+      document.getElementById('midRuleOddsNavi').checked = state.rules.oddsNavi;
+      document.getElementById('midRuleSplit').checked = state.rules.split;
+      document.getElementById('midRuleSurrender').checked = state.rules.surrender;
+      document.getElementById('midRuleFinalAllIn').checked = state.rules.finalAllIn;
+      document.getElementById('midRulesModal').classList.remove('hidden');
+    }
+
+    function closeMidGameRulesModal() {
+      document.getElementById('midRulesModal').classList.add('hidden');
+    }
+
+    function saveMidGameRules() {
+      state.rules.oddsNavi = document.getElementById('midRuleOddsNavi').checked;
+      state.rules.split = document.getElementById('midRuleSplit').checked;
+      state.rules.surrender = document.getElementById('midRuleSurrender').checked;
+      state.rules.finalAllIn = document.getElementById('midRuleFinalAllIn').checked;
+      closeMidGameRulesModal();
+      renderAll();
+    }
+
+    function openHistoryModal() {
+      const container = document.getElementById('historyContent');
+      if (state.history.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-8">まだ精算完了したラウンドがありません。</p>';
+      } else {
+        container.innerHTML = state.history.map(item => `
+          <div class="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80">
+            <div class="flex items-center justify-between border-b border-slate-200/70 pb-2 mb-2">
+              <span class="font-extrabold text-slate-800">Round ${item.round}</span>
+              <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-white">親の結果: ${item.dealer}</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              ${item.records.map(r => {
+                const sign = r.delta > 0 ? `+${r.delta}` : r.delta === 0 ? '±0' : `${r.delta}`;
+                const col = r.delta > 0 ? 'text-emerald-600' : r.delta < 0 ? 'text-rose-600' : 'text-slate-500';
+                return `
+                  <div class="bg-white px-2.5 py-1.5 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
+                    <span class="font-bold text-slate-700 truncate mr-1">${escapeHtml(r.name)}</span>
+                    <span class="font-black ${col}">${sign}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `).join('');
+      }
+      document.getElementById('historyModal').classList.remove('hidden');
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('historyModal').classList.add('hidden');
+    }
+
+    function showFinalRanking() {
+      const sorted = [...state.players].sort((a, b) => b.chips - a.chips);
+      const list = document.getElementById('rankingList');
+
+      list.innerHTML = sorted.map((p, idx) => {
+        const diff = p.chips - state.startingChips;
+        const diffText = diff > 0 ? `+${diff}` : diff === 0 ? '±0' : `${diff}`;
+        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}位`;
+        const highlight = idx === 0 ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200';
+        const chipsColor = p.chips < 0 ? 'text-rose-600' : 'text-slate-900';
+
+        return `
+          <div class="flex items-center justify-between p-3.5 rounded-2xl border ${highlight}">
+            <div class="flex items-center gap-3">
+              <span class="text-xl font-black w-8 text-center">${medal}</span>
+              <div>
+                <div class="font-extrabold text-slate-800">${escapeHtml(p.name)}</div>
+                <div class="text-xs font-bold text-slate-400">初期比: ${diffText} 枚</div>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-2xl font-black ${chipsColor}">${p.chips}</span>
+              <span class="text-xs font-bold text-slate-500">枚</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('rankingModal').classList.remove('hidden');
+    }
+
+    function continueEndlessFromRanking() {
+      state.maxRounds = 0;
+      state.currentRound += 1;
+      document.getElementById('rankingModal').classList.add('hidden');
+      initRoundBetting();
+    }
+
+    function confirmResetToTitle() {
+      document.getElementById('confirmOkBtn').onclick = () => {
+        closeConfirmModal();
+        backToSetup();
+      };
+      document.getElementById('confirmModal').classList.remove('hidden');
+    }
+
+    function closeConfirmModal() {
+      document.getElementById('confirmModal').classList.add('hidden');
+    }
+
+    function backToSetup() {
+      document.getElementById('rankingModal').classList.add('hidden');
+      document.getElementById('gameScreen').classList.add('hidden');
+      document.getElementById('setupScreen').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renderSetupNames();
+      syncPresetUI();
+    });
+  </script>
+</body>
+</html>
